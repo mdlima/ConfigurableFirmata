@@ -30,7 +30,7 @@ void reportAnalogInputCallback(byte analogPin, int value)
 AnalogInputFirmata::AnalogInputFirmata()
 {
   AnalogInputFirmataInstance = this;
-  analogInputsToReport = 0;
+  reset();
   Firmata.attach(REPORT_ANALOG, reportAnalogInputCallback);
 }
 
@@ -42,18 +42,21 @@ AnalogInputFirmata::AnalogInputFirmata()
 void AnalogInputFirmata::reportAnalog(byte analogPin, int value)
 {
   if (analogPin < TOTAL_ANALOG_PINS) {
-    if (value == 0) {
-      analogInputsToReport = analogInputsToReport & ~ (1 << analogPin);
-    } else {
-      analogInputsToReport = analogInputsToReport | (1 << analogPin);
-      // prevent during system reset or all analog pin values will be reported
-      // which may report noise for unconnected analog pins
-      if (!Firmata.isResetting()) {
-        // Send pin value immediately. This is helpful when connected via
-        // ethernet, wi-fi or bluetooth so pin states can be known upon
-        // reconnecting.
-        Firmata.sendAnalog(analogPin, analogRead(analogPin));
-      }
+    // value is the report interval in millis or seconds, depending on the first bit. 0 is millis, 1 is seconds.
+    // if value is in millis and <= MINIMUM_SAMPLING_INTERVAL, pin will be reported in the global sampling loop
+    analogPinsReportInterval[analogPin] = value;
+    // prevent during system reset or all analog pin values will be reported
+    // which may report noise for unconnected analog pins
+    if (!Firmata.isResetting()) {
+      // Send pin value immediately. This is helpful when connected via
+      // ethernet, wi-fi or bluetooth so pin states can be known upon
+      // reconnecting.
+      Firmata.sendAnalog(analogPin, analogRead(analogPin));
+      analogPinsPreviousReport[analogPin] = millis();
+    }
+    else {
+      // set last report time to -reporting interval, being unsigned this wil wrap, but so will the check
+      analogPinsPreviousReport[analogPin] = -PIN_SAMPLING_INTERVAL_TIME(analogPinsReportInterval[analogPin]);
     }
   }
   // TODO: save status to EEPROM here, if changed
@@ -85,13 +88,29 @@ void AnalogInputFirmata::handleCapability(byte pin)
 
 boolean AnalogInputFirmata::handleSysex(byte command, byte argc, byte* argv)
 {
+  if (command == REPORT_ANALOG_CONFIG) {
+    if (argc > 1) {
+      int analogPin = argv[0];
+      int val = argv[1];
+      if (argc > 2) val |= (argv[2] << 7);
+      // val is the report interval in millis or seconds, depending on the first bit. 0 is millis, 1 is seconds.
+      // if val is in millis and <= MINIMUM_SAMPLING_INTERVAL, pin will be reported in the global sampling loop
+      analogPinsReportInterval[analogPin] = val;
+      // prevent during system reset or all analog pin values will be reported
+      // which may report noise for unconnected analog pins
+      // set last report time to -reporting interval, being unsigned this wil wrap, but so will the check
+      analogPinsPreviousReport[analogPin] = -PIN_SAMPLING_INTERVAL_TIME(analogPinsReportInterval[analogPin]);
+    }
+    return true;
+  }
   return handleAnalogFirmataSysex(command, argc, argv);
 }
 
 void AnalogInputFirmata::reset()
 {
   // by default, do not report any analog inputs
-  analogInputsToReport = 0;
+  memset(analogPinsReportInterval, 0, TOTAL_ANALOG_PINS * sizeof analogPinsReportInterval[0]);
+  memset(analogPinsPreviousReport, 0, TOTAL_ANALOG_PINS * sizeof analogPinsPreviousReport[0]);
 }
 
 void AnalogInputFirmata::report()
@@ -101,8 +120,11 @@ void AnalogInputFirmata::report()
   for (pin = 0; pin < TOTAL_PINS; pin++) {
     if (IS_PIN_ANALOG(pin) && Firmata.getPinMode(pin) == PIN_MODE_ANALOG) {
       analogPin = PIN_TO_ANALOG(pin);
-      if (analogInputsToReport & (1 << analogPin)) {
+      if ((PIN_SAMPLING_INTERVAL_TIME(analogPinsReportInterval[analogPin]) <= MINIMUM_SAMPLING_INTERVAL) || // analog pin using default sampling interval
+          ((millis() - analogPinsPreviousReport[analogPin]) > PIN_SAMPLING_INTERVAL_TIME(analogPinsReportInterval[analogPin]))) // analog pin using individual sampling interval
+      {
         Firmata.sendAnalog(analogPin, analogRead(analogPin));
+        analogPinsPreviousReport[analogPin] += PIN_SAMPLING_INTERVAL_TIME(analogPinsReportInterval[analogPin]);
       }
     }
   }
