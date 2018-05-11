@@ -40,6 +40,7 @@ class AnalogInputFirmata: public FirmataFeature
     boolean handleSysex(byte command, byte argc, byte* argv);
     void reset();
     void report();
+    void reportIndividualPins(bool globalReportingTime = false);
 
   private:
     /* analog inputs */
