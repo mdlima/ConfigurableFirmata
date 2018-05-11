@@ -115,13 +115,19 @@ void AnalogInputFirmata::reset()
 
 void AnalogInputFirmata::report()
 {
+  reportIndividualPins(true);
+}
+
+void AnalogInputFirmata::reportIndividualPins(bool globalReportingTime /* = false */)
+{
   byte pin, analogPin;
   /* ANALOGREAD - do all analogReads() at the configured sampling interval */
+  unsigned long currentMillis = millis();
   for (pin = 0; pin < TOTAL_PINS; pin++) {
     if (IS_PIN_ANALOG(pin) && Firmata.getPinMode(pin) == PIN_MODE_ANALOG) {
       analogPin = PIN_TO_ANALOG(pin);
-      if ((PIN_SAMPLING_INTERVAL_TIME(analogPinsReportInterval[analogPin]) <= MINIMUM_SAMPLING_INTERVAL) || // analog pin using default sampling interval
-          ((millis() - analogPinsPreviousReport[analogPin]) > PIN_SAMPLING_INTERVAL_TIME(analogPinsReportInterval[analogPin]))) // analog pin using individual sampling interval
+      if ((globalReportingTime && (PIN_SAMPLING_INTERVAL_TIME(analogPinsReportInterval[analogPin]) <= MINIMUM_SAMPLING_INTERVAL)) || // analog pin using default sampling interval
+          ((currentMillis - analogPinsPreviousReport[analogPin]) > PIN_SAMPLING_INTERVAL_TIME(analogPinsReportInterval[analogPin]))) // analog pin using individual sampling interval
       {
         Firmata.sendAnalog(analogPin, analogRead(analogPin));
         analogPinsPreviousReport[analogPin] += PIN_SAMPLING_INTERVAL_TIME(analogPinsReportInterval[analogPin]);
