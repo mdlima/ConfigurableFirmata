@@ -21,6 +21,13 @@
 #include "FirmataFeature.h"
 #include "FirmataReporting.h"
 
+// pin sampling interval has 14 bits
+// first bit is time unit (0 = ms, 1 = s)
+#define PIN_SAMPLING_INTERVAL_TIME_UNIT_MASK 0x2000
+// 13 other bits is the actual interval
+#define PIN_SAMPLING_INTERVAL_VALUE_MASK     0x1FFF
+#define PIN_SAMPLING_INTERVAL_TIME(v) ((v & PIN_SAMPLING_INTERVAL_TIME_UNIT_MASK) ? (v & PIN_SAMPLING_INTERVAL_VALUE_MASK) * 1000 : (v & PIN_SAMPLING_INTERVAL_VALUE_MASK))
+
 void reportAnalogInputCallback(byte analogPin, int value);
 
 class AnalogInputFirmata: public FirmataFeature
@@ -36,7 +43,8 @@ class AnalogInputFirmata: public FirmataFeature
 
   private:
     /* analog inputs */
-    int analogInputsToReport; // bitwise array to store pin reporting
+    unsigned int analogPinsReportInterval[TOTAL_ANALOG_PINS]; // most significant bit stores unit (0=millis, 1=seconds)
+    unsigned long analogPinsPreviousReport[TOTAL_ANALOG_PINS];
 };
 
 #endif
