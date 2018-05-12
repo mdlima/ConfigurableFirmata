@@ -73,6 +73,7 @@
 #define SERIAL_MESSAGE          0x60 // communicate with serial devices, including other boards
 #define ENCODER_DATA            0x61 // reply with encoders current positions
 #define ACCELSTEPPER_DATA       0x62 // control a stepper motor
+#define DHTSENSOR_DATA          0x66 // connect to DHT11 or DHT22 sensor
 #define SERVO_CONFIG            0x70 // set max angle, minPulse, maxPulse, freq
 #define STRING_DATA             0x71 // a string message with 14-bits per char
 #define STEPPER_DATA            0x72 // control a stepper motor
@@ -113,6 +114,7 @@
 #define PIN_MODE_ENCODER        0x09 // pin configured for rotary encoders
 #define PIN_MODE_SERIAL         0x0A // pin configured for serial communication
 #define PIN_MODE_PULLUP         0x0B // enable internal pull-up resistor for pin
+#define PIN_MODE_DHT            0x0C // pin configured for DHT sensor
 #define PIN_MODE_IGNORE         0x7F // pin configured to be ignored by digitalWrite and capabilityResponse
 #define TOTAL_PIN_MODES         13
 // DEPRECATED as of Firmata v2.5
