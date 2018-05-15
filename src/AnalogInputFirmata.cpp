@@ -85,6 +85,35 @@ void AnalogInputFirmata::handleCapability(byte pin)
 
 boolean AnalogInputFirmata::handleSysex(byte command, byte argc, byte* argv)
 {
+  if (command == EXTENDED_ANALOG_READ) {
+    if (argc > 1) {
+      uint8_t subCommand = argv[0];
+
+      if (subCommand == EXTENDED_ANALOG_READ_READ_NOW) {
+        uint8_t analogPin = argv[1];
+        uint8_t readAverageLoops = (argc > 2) ? constrain(argv[2], 1, 63) : 1;  // (optional - does multiple analog reads and returns the average value)
+        uint8_t readDelay = (argc > 3) ? argv[3] : 10;                          // (optional - delay in us to wait before reading)
+        uint8_t powerPin = (argc > 4) ? argv[4] : NOT_A_PIN;                    // (optional - sets the power pin to high before reading and to low afterwards)
+
+        uint32_t analogValue = 0;
+
+        if (powerPin != NOT_A_PIN) digitalWrite(powerPin, HIGH);
+        for (uint8_t i = 0; i < readAverageLoops; i++){
+          // Read light sensor data.
+          analogValue += analogRead(analogPin);
+
+          // some pause between reads adds more stability.
+          delayMicroseconds(readDelay);
+        }
+        if (powerPin != NOT_A_PIN) digitalWrite(powerPin, LOW);
+
+        // Take an average of all the readings.
+        Firmata.sendAnalog(analogPin, int(analogValue / readAverageLoops));
+      }
+    }
+    return true;
+  }
+
   return handleAnalogFirmataSysex(command, argc, argv);
 }
 

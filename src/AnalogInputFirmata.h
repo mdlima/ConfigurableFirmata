@@ -21,6 +21,9 @@
 #include "FirmataFeature.h"
 #include "FirmataReporting.h"
 
+// EXTENDED_ANALOG_READ commmands
+#define EXTENDED_ANALOG_READ_READ_NOW 0x01
+
 void reportAnalogInputCallback(byte analogPin, int value);
 
 class AnalogInputFirmata: public FirmataFeature
