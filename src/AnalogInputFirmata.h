@@ -21,8 +21,13 @@
 #include "FirmataFeature.h"
 #include "FirmataReporting.h"
 
-// EXTENDED_ANALOG_READ commmands
-#define EXTENDED_ANALOG_READ_READ_NOW 0x01
+extern "C" {
+#include <limits.h>
+}
+
+#define ANALOG_INPUTS_BIT_ARRAY_SIZE ((TOTAL_ANALOG_PINS / CHAR_BIT) + ((TOTAL_ANALOG_PINS % CHAR_BIT) ? 1 : 0))
+#define ANALOG_INPUTS_BYTE_INDEX(b)  (b / CHAR_BIT)
+#define ANALOG_INPUTS_BIT_INDEX(b)   (b % CHAR_BIT)
 
 void reportAnalogInputCallback(byte analogPin, int value);
 
@@ -39,7 +44,7 @@ class AnalogInputFirmata: public FirmataFeature
 
   private:
     /* analog inputs */
-    int analogInputsToReport; // bitwise array to store pin reporting
+    byte analogInputsToReport[ANALOG_INPUTS_BIT_ARRAY_SIZE]; // bitwise array to store pin reporting
 };
 
 #endif

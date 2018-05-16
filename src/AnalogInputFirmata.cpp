@@ -30,12 +30,12 @@ void reportAnalogInputCallback(byte analogPin, int value)
 AnalogInputFirmata::AnalogInputFirmata()
 {
   AnalogInputFirmataInstance = this;
-  analogInputsToReport = 0;
+  reset();
   Firmata.attach(REPORT_ANALOG, reportAnalogInputCallback);
 }
 
 // -----------------------------------------------------------------------------
-/* sets bits in a bit array (int) to toggle the reporting of the analogIns
+/* sets bits in a byte array to toggle the reporting of the analog pins
  */
 //void FirmataClass::setAnalogPinReporting(byte pin, byte state) {
 //}
@@ -43,9 +43,11 @@ void AnalogInputFirmata::reportAnalog(byte analogPin, int value)
 {
   if (analogPin < TOTAL_ANALOG_PINS) {
     if (value == 0) {
-      analogInputsToReport = analogInputsToReport & ~ (1 << analogPin);
+      // analogInputsToReport[ANALOG_INPUTS_BYTE_INDEX(analogPin)] &=  ~ (1 << ANALOG_INPUTS_BIT_INDEX(analogPin));
+      bitClear(analogInputsToReport[ANALOG_INPUTS_BYTE_INDEX(analogPin)], ANALOG_INPUTS_BIT_INDEX(analogPin));
     } else {
-      analogInputsToReport = analogInputsToReport | (1 << analogPin);
+      // analogInputsToReport[ANALOG_INPUTS_BYTE_INDEX(analogPin)] |= (1 << ANALOG_INPUTS_BIT_INDEX(analogPin));
+      bitSet(analogInputsToReport[ANALOG_INPUTS_BYTE_INDEX(analogPin)], ANALOG_INPUTS_BIT_INDEX(analogPin));
       // prevent during system reset or all analog pin values will be reported
       // which may report noise for unconnected analog pins
       if (!Firmata.isResetting()) {
@@ -86,32 +88,26 @@ void AnalogInputFirmata::handleCapability(byte pin)
 boolean AnalogInputFirmata::handleSysex(byte command, byte argc, byte* argv)
 {
   if (command == EXTENDED_ANALOG_READ) {
-    if (argc > 1) {
-      uint8_t subCommand = argv[0];
+    if (argc > 0) {
+      byte subCommand = argv[0] & 0x7F;
 
-      if (subCommand == EXTENDED_ANALOG_READ_READ_NOW) {
+      if (subCommand == EXTENDED_ANALOG_READ_QUERY) {
         uint8_t analogPin = argv[1];
-        uint8_t readAverageLoops = (argc > 2) ? constrain(argv[2], 1, 63) : 1;  // (optional - does multiple analog reads and returns the average value)
-        uint8_t readDelay = (argc > 3) ? argv[3] : 10;                          // (optional - delay in us to wait before reading)
-        uint8_t powerPin = (argc > 4) ? argv[4] : NOT_A_PIN;                    // (optional - sets the power pin to high before reading and to low afterwards)
 
-        uint32_t analogValue = 0;
-
-        if (powerPin != NOT_A_PIN) digitalWrite(powerPin, HIGH);
-        for (uint8_t i = 0; i < readAverageLoops; i++){
-          // Read light sensor data.
-          analogValue += analogRead(analogPin);
-
-          // some pause between reads adds more stability.
-          delayMicroseconds(readDelay);
+        if (argc > 2) {
+          if (argv[2]) {
+            reportAnalog(analogPin, 1);
+          } else {
+            reportAnalog(analogPin, 0);
+            // TODO: Check if message should be sent
+          }
+        } else {
+          Firmata.sendAnalog(analogPin, analogRead(analogPin));
         }
-        if (powerPin != NOT_A_PIN) digitalWrite(powerPin, LOW);
-
-        // Take an average of all the readings.
-        Firmata.sendAnalog(analogPin, int(analogValue / readAverageLoops));
+        return true;
       }
     }
-    return true;
+    return false;
   }
 
   return handleAnalogFirmataSysex(command, argc, argv);
@@ -120,7 +116,7 @@ boolean AnalogInputFirmata::handleSysex(byte command, byte argc, byte* argv)
 void AnalogInputFirmata::reset()
 {
   // by default, do not report any analog inputs
-  analogInputsToReport = 0;
+  memset(analogInputsToReport, 0, ANALOG_INPUTS_BIT_ARRAY_SIZE);
 }
 
 void AnalogInputFirmata::report()
@@ -130,7 +126,7 @@ void AnalogInputFirmata::report()
   for (pin = 0; pin < TOTAL_PINS; pin++) {
     if (IS_PIN_ANALOG(pin) && Firmata.getPinMode(pin) == PIN_MODE_ANALOG) {
       analogPin = PIN_TO_ANALOG(pin);
-      if (analogInputsToReport & (1 << analogPin)) {
+      if (bitRead(analogInputsToReport[ANALOG_INPUTS_BYTE_INDEX(analogPin)], ANALOG_INPUTS_BIT_INDEX(analogPin))) {
         Firmata.sendAnalog(analogPin, analogRead(analogPin));
       }
     }
