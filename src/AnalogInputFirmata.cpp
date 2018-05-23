@@ -118,6 +118,24 @@ void AnalogInputFirmata::report()
   reportIndividualPins(true);
 }
 
+uint16_t smoothedAnalogRead(uint8_t pin, uint8_t num_readings /* = 10 */, uint16_t delay_between_reads_us /* = 300 */)
+{
+  uint32_t analog_value = 0;
+
+  for (uint8_t i = 0; i < num_readings; i++){
+    // 1ms pause adds more stability between reads.
+    // Currently, the largest value that will produce an accurate delay is 16383.
+    // https://www.arduino.cc/reference/en/language/functions/time/delaymicroseconds/
+    delayMicroseconds(delay_between_reads_us);
+
+    // Read light sensor data.
+    analog_value += analogRead(pin);
+  }
+
+  // Take an average of all the readings.
+  return uint16_t(analog_value / num_readings);
+}
+
 void AnalogInputFirmata::reportIndividualPins(bool globalReportingTime /* = false */)
 {
   byte pin, analogPin;
@@ -129,7 +147,7 @@ void AnalogInputFirmata::reportIndividualPins(bool globalReportingTime /* = fals
       if ((globalReportingTime && (PIN_SAMPLING_INTERVAL_TIME(analogPinsReportInterval[analogPin]) <= MINIMUM_SAMPLING_INTERVAL)) || // analog pin using default sampling interval
           ((currentMillis - analogPinsPreviousReport[analogPin]) > PIN_SAMPLING_INTERVAL_TIME(analogPinsReportInterval[analogPin]))) // analog pin using individual sampling interval
       {
-        Firmata.sendAnalog(analogPin, analogRead(analogPin));
+        Firmata.sendAnalog(analogPin, smoothedAnalogRead(analogPin, 10, 100));
         analogPinsPreviousReport[analogPin] += PIN_SAMPLING_INTERVAL_TIME(analogPinsReportInterval[analogPin]);
       }
     }
